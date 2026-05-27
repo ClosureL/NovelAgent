@@ -25,6 +25,7 @@ class NovelEditorAgent(BaseAgent):
     """小说编辑 Agent —— 仅含修订工具和只读查询工具，不可修改大纲/角色/世界书。"""
 
     content_tool_names = {"revise_content"}
+    refresh_every_turn = True
 
     def __init__(self, model_name: str | None = None):
         super().__init__(system_prompt=PROMPT, tool_names=TOOLS, model_name=model_name)

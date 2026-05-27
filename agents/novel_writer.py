@@ -27,6 +27,7 @@ class NovelWriterAgent(BaseAgent):
     """完整小说创作 Agent —— 包含全部规划和写作工具。"""
 
     content_tool_names = {"write_chapter", "revise_content"}
+    refresh_every_turn = True
 
     def __init__(self, model_name: str | None = None):
         super().__init__(system_prompt=PROMPT, tool_names=TOOLS, model_name=model_name)

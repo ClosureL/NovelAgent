@@ -419,7 +419,8 @@ def run_cli(stream_mode: bool = False, planner_mode: bool = False):
                 cprint("正在生成上下文摘要...", "dim")
                 filepath = agent.compact()
                 if filepath:
-                    stat_after = agent.get_token_stats()
+                    stat_after = agent._last_compact_stats or agent.get_token_stats()
+                    agent._last_compact_stats = None
                     cprint(f"压缩完成！摘要已保存至: {filepath}", "green")
                     cprint(f"压缩后上下文: {stat_after['total_tokens']:,} tokens（token 统计已重置）", "green")
                 else:
@@ -615,8 +616,9 @@ def run_cli(stream_mode: bool = False, planner_mode: bool = False):
             else:
                 print(response)
 
-        # Token 统计
-        stats = agent.get_token_stats()
+        # Token 统计（优先用 _last_turn_stats，Writer/Editor 刷新时会保存）
+        stats = agent._last_turn_stats or agent.get_token_stats()
+        agent._last_turn_stats = None
         color = "yellow" if stats["usage_pct"] > 50 else ("red" if stats["usage_pct"] > 80 else "dim")
         cprint(
             f"📊 Token: {stats['total_tokens']:,} / {stats['context_window']:,} "

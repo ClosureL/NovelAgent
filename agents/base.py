@@ -19,6 +19,9 @@ class BaseAgent:
     # 子类可覆盖：哪些工具触发 content_tool_used 标记
     content_tool_names: set[str] = set()
 
+    # 子类可覆盖：每轮对话后是否自动刷新上下文（仅保留 system prompt + 状态摘要）
+    refresh_every_turn: bool = False
+
     def __init__(self, system_prompt: str, tool_names: list[str], model_name: str | None = None):
         model_name = model_name or DEFAULT_MODEL
         cfg = MODEL_CONFIG[model_name]
@@ -54,6 +57,9 @@ class BaseAgent:
         self._snapshot_files: set[str] = set()
         self._snapshot_has_novel_state: bool = False
 
+        self._last_turn_stats: dict | None = None
+        self._last_compact_stats: dict | None = None
+
     # ── 回退机制 ─────────────────────────────────────────────
 
     def snapshot(self):
@@ -68,6 +74,11 @@ class BaseAgent:
         self._snapshot_has_novel_state = get_state().outline is not None
         novel_dir = get_novel_dir()
         if novel_dir and novel_dir.exists():
+            # 清理上一轮 revise 留下的备份（新快照覆盖后已无用）
+            import shutil
+            bak_dir = novel_dir / "chapters" / ".revision_bak"
+            if bak_dir.exists():
+                shutil.rmtree(bak_dir)
             for p in novel_dir.rglob("*"):
                 if p.is_file():
                     self._snapshot_files.add(str(p))
@@ -120,19 +131,16 @@ class BaseAgent:
                 # 从 .revision_bak 恢复被修改章节的原始正文
                 bak_dir = novel_dir / "chapters" / ".revision_bak"
                 if bak_dir.exists():
-                    import re
                     state = get_state()
-                    for bak_file in sorted(bak_dir.glob("第*章_bak_*.txt"), reverse=True):
-                        match = re.match(r"第(\d+)章_bak_", bak_file.name)
-                        if match:
-                            ch_num = int(match.group(1))
-                            try:
-                                old_content = bak_file.read_text(encoding="utf-8")
-                                if ch_num in state.chapters:
-                                    state.chapters[ch_num]["content"] = old_content
-                                    state.chapters[ch_num]["word_count"] = len(old_content)
-                            except Exception:
-                                pass
+                    for bak_file in sorted(bak_dir.glob("第*章_bak.txt")):
+                        try:
+                            ch_num = int(bak_file.stem.replace("章_bak", "").lstrip("第"))
+                            old_content = bak_file.read_text(encoding="utf-8")
+                            if ch_num in state.chapters:
+                                state.chapters[ch_num]["content"] = old_content
+                                state.chapters[ch_num]["word_count"] = len(old_content)
+                        except Exception:
+                            pass
 
                 for p in novel_dir.rglob("*"):
                     if p.is_file() and str(p) not in self._snapshot_files:
@@ -146,7 +154,7 @@ class BaseAgent:
                 except Exception:
                     pass
 
-                # 清理空的 .revision_bak 目录
+                # 清理 .revision_bak 目录
                 if bak_dir.exists():
                     try:
                         import shutil
@@ -189,18 +197,10 @@ class BaseAgent:
             ) if self.context_window else 0,
         }
 
-    def _token_stats_str(self) -> str:
-        """生成 token 统计的可读字符串。"""
-        s = self.get_token_stats()
-        return (
-            f"[Token: {s['total_tokens']:,}/{s['context_window']:,} "
-            f"({s['usage_pct']}%) | API 调用: {s['api_calls']}]"
-        )
-
     # ── 模型切换 ─────────────────────────────────────────────
 
     def switch_model(self, model_name: str) -> bool:
-        """运行时切换模型，更新 client/model/context_window，保留对话状态。
+        """运行时切换模型，更新 client/model/context_window，重置 token 统计。
         返回 True 表示切换成功，False 表示目标模型不存在。"""
         if model_name not in MODEL_CONFIG:
             return False
@@ -213,6 +213,12 @@ class BaseAgent:
         self.model = cfg["model"]
         self.model_name = model_name
         self.context_window = cfg.get("context_window", 128_000)
+        self.session_tokens = {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "api_calls": 0,
+        }
         return True
 
     # ── 对话压缩 ─────────────────────────────────────────────
@@ -282,7 +288,8 @@ class BaseAgent:
         })
         set_messages_ref(self.messages)
 
-        # 重置 token 统计
+        # 重置 token 统计（重置前保存，供 cli.py 展示压缩消耗）
+        self._last_compact_stats = self.get_token_stats()
         self.session_tokens = {
             "prompt_tokens": 0,
             "completion_tokens": 0,
@@ -381,6 +388,24 @@ class BaseAgent:
             self.messages.append({"role": "system", "content": context})
         set_messages_ref(self.messages)
 
+    def _refresh_context(self):
+        """每轮对话后刷新上下文：仅保留系统提示 + 项目状态摘要。
+        由 refresh_every_turn 控制，Writer/Editor 启用，Planner/Explorer 不启用。
+        刷新前保存本轮 token 统计到 _last_turn_stats，供 cli.py 展示。"""
+        from tools import build_state_context
+
+        ctx = build_state_context()
+        if not ctx:
+            return
+        self._last_turn_stats = self.get_token_stats()
+        self.set_state_context(ctx)
+        self.session_tokens = {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "api_calls": 0,
+        }
+
     # ── API 调用 ─────────────────────────────────────────────
 
     def _build_request_kwargs(self, stream: bool = False, tools: list | None = ...) -> dict:
@@ -416,7 +441,10 @@ class BaseAgent:
         for _ in range(max_turns):
             tools = None if content_tool_used else ...
             kwargs = self._build_request_kwargs(stream=False, tools=tools)
-            response = self.client.chat.completions.create(**kwargs)
+            try:
+                response = self.client.chat.completions.create(**kwargs)
+            except Exception as e:
+                return f"（API 调用失败：{e}）"
             self._accumulate_tokens(response.usage)
             choice = response.choices[0]
             message = choice.message
@@ -475,6 +503,8 @@ class BaseAgent:
                 if not content_tool_used and not chapter_saved:
                     self._auto_save_text_as_chapter(text_content)
                 self._auto_save()
+                if self.refresh_every_turn:
+                    self._refresh_context()
                 return text_content
 
         return "（已达到最大工具调用轮数，请简化你的请求。）"
@@ -542,6 +572,8 @@ class BaseAgent:
                                     collected_tool_calls[idx].get("function", {}).get("arguments", "") + tc_delta.function.arguments
 
             self._accumulate_tokens(stream_usage)
+            if stream_usage is None:
+                self.session_tokens["api_calls"] += 1
 
             if collected_tool_calls:
                 text = collected_content.strip()
@@ -587,6 +619,8 @@ class BaseAgent:
                 if not content_tool_used and not chapter_saved:
                     self._auto_save_text_as_chapter(collected_content)
                 self._auto_save()
+                if self.refresh_every_turn:
+                    self._refresh_context()
                 yield {"type": "done", "content": collected_content}
                 return
 

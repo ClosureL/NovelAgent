@@ -50,14 +50,17 @@ def execute(args: dict) -> str:
     old_title = state.chapters[ch_num].get("title", f"第{ch_num}章")
     old_content = state.chapters[ch_num].get("content", "")
 
-    # 保存修改前备份到 chapters/ 目录
+    # 保存修改前备份到 chapters/ 目录（一次性临时文件，先删后建实现覆盖）
+    import shutil
     from .state import get_novel_dir
     novel_dir = get_novel_dir()
+    bak_path = None
     if novel_dir:
         bak_dir = novel_dir / "chapters" / ".revision_bak"
+        if bak_dir.exists():
+            shutil.rmtree(bak_dir)
         bak_dir.mkdir(parents=True, exist_ok=True)
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        bak_path = bak_dir / f"第{ch_num}章_bak_{ts}.txt"
+        bak_path = bak_dir / f"第{ch_num}章_bak.txt"
         bak_path.write_text(old_content, encoding="utf-8")
 
     state.chapters[ch_num] = {
