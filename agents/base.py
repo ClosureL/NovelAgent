@@ -434,7 +434,7 @@ class BaseAgent:
         if user_input:
             self.add_user_message(user_input)
 
-        max_turns = 30
+        max_turns = 50
         content_tool_used = False
         chapters_before = len(get_state().chapters)
 
@@ -514,7 +514,7 @@ class BaseAgent:
         if user_input:
             self.add_user_message(user_input)
 
-        max_turns = 30
+        max_turns = 50
         content_tool_used = False
         chapters_before = len(get_state().chapters)
 

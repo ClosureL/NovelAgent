@@ -8,6 +8,7 @@ NovelExplorer Agent —— 独立资料研究与随笔记录 Agent。
 
 from pathlib import Path
 from .base import BaseAgent
+from config import MODEL_CONFIG
 
 PROMPT = (Path(__file__).parent / "prompts" / "novel_explorer.md").read_text(encoding="utf-8")
 
@@ -40,18 +41,18 @@ class NovelExplorerAgent(BaseAgent):
 
     def _build_request_kwargs(self, stream: bool = False, tools: list | None = ...) -> dict:
         kwargs = super()._build_request_kwargs(stream=stream, tools=tools)
-        # mimo 模型：将 function-calling 格式的 web_search 替换为 Mimo 内置格式
+        # mimo 模型且 web_search=True：将 function-calling 格式替换为 Mimo 内置格式
         if "mimo" in self.model_name.lower() and tools is not None:
-            current_tools = list(kwargs.get("tools", []) or [])
-            # 移除 function-calling 格式的 web_search
-            current_tools = [
-                t for t in current_tools
-                if not (t.get("type") == "function"
-                        and t.get("function", {}).get("name") == "web_search")
-            ]
-            # 注入 Mimo 内置格式
-            current_tools.append(dict(_MIMO_WEB_SEARCH))
-            kwargs["tools"] = current_tools
+            model_cfg = MODEL_CONFIG.get(self.model_name, {})
+            if model_cfg.get("web_search", False):
+                current_tools = list(kwargs.get("tools", []) or [])
+                current_tools = [
+                    t for t in current_tools
+                    if not (t.get("type") == "function"
+                            and t.get("function", {}).get("name") == "web_search")
+                ]
+                current_tools.append(dict(_MIMO_WEB_SEARCH))
+                kwargs["tools"] = current_tools
         return kwargs
 
     def _auto_save(self):

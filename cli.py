@@ -119,14 +119,14 @@ def show_agent_list():
         table.add_column("说明")
         table.add_row("writer", "NovelWriter", "完整小说创作：包含全部规划与写作工具")
         table.add_row("planner", "NovelPlanner", "小说策划顾问：专注情节规划与需求澄清，不含写作工具")
-        table.add_row("editor", "NovelEditor", "小说编辑润色：修改已有章节，只读查询大纲/角色/设定")
+        table.add_row("editor", "NovelEditor", "小说改写：重写已有章节，重塑文风，只读查询大纲/角色/设定")
         table.add_row("explorer", "NovelExplorer", "独立探索：查资料/随笔/记录，即插即用，不保存历史")
         console.print(table)
     else:
         print(f"\n{Colors.BOLD}可用 Agent：{Colors.RESET}")
         print(f"  {Colors.CYAN}writer{Colors.RESET}   - NovelWriter（完整创作：规划 + 写作）")
         print(f"  {Colors.CYAN}planner{Colors.RESET}  - NovelPlanner（策划顾问：规划 + 需求澄清）")
-        print(f"  {Colors.CYAN}editor{Colors.RESET}   - NovelEditor（编辑润色：修改已有章节）")
+        print(f"  {Colors.CYAN}editor{Colors.RESET}   - NovelEditor（小说改写：重写与风格重塑）")
         print(f"  {Colors.CYAN}explorer{Colors.RESET} - NovelExplorer（独立探索：查资料/随笔，即插即弃）")
 
 

@@ -76,7 +76,7 @@ KhaosCodex Start!
 
 ## 可用工具
 
-**联网搜索**：内置 `web_search`（自动可用，无需显式调用，模型直接搜索）
+**联网搜索**：使用 `web_search` 工具搜索实时信息。调用时传入 query 关键词即可。
 **项目查询**：`read_previous_chapter`（读取章节）、`view_outline`（查看大纲）、`search_characters`（检索角色）、`search_world_book`（检索世界书设定）、`read_material`（浏览素材库）
 **输出**：`save_material` — 保存 Markdown 到 `materials/` 目录。**仅当用户明确要求「总结」「保存」或「输出」时使用**
 

@@ -31,6 +31,7 @@ MODEL_CONFIG = {
         "base_url": "https://api.xiaomimimo.com/v1",
         "api_key": "",
         "context_window": 1_000_000,
+        "web_search": False,  # True=原生服务端搜索, False=回退MCP搜索
     },
 }
 
@@ -45,4 +46,11 @@ GENERATION_CONFIG = {
 THINKING_CONFIG = {
     "enabled": True,
     "reasoning_effort": "high",  # high / max
+}
+
+# MCP 搜索服务器配置 (目前仅支持tavily)
+MCP_CONFIG = {
+    "search_servers": [
+        "https://mcp.tavily.com/mcp/?tavilyApiKey=YOUR-API-KEY",
+    ],
 }

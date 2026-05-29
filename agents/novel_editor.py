@@ -1,9 +1,9 @@
 # encoding: utf-8
 """
-NovelEditor Agent —— 小说编辑润色 Agent。
+NovelEditor Agent —— 小说改写 Agent。
 
-仅负责修改润色已有章节，无改动大纲、角色和世界书的权限。
-可只读查询大纲/角色/世界书以确认上下文。
+负责对已有章节进行大刀阔斧的重写与风格重塑，打破大模型文风惯性。
+无权改动大纲、角色和世界书，可只读查询以确认上下文。
 """
 
 from pathlib import Path
@@ -22,7 +22,7 @@ TOOLS = [
 
 
 class NovelEditorAgent(BaseAgent):
-    """小说编辑 Agent —— 仅含修订工具和只读查询工具，不可修改大纲/角色/世界书。"""
+    """小说改写 Agent —— 含修订工具和只读查询工具，不可修改大纲/角色/世界书。"""
 
     content_tool_names = {"revise_content"}
     refresh_every_turn = True
